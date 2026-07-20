@@ -12,6 +12,7 @@ import axios from 'axios';
 import { YoutubeSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/youtube.settings.dto';
 import {
   BadBody,
+  RefreshToken,
   SocialAbstract,
   ValidityMedia,
 } from '@gitroom/nestjs-libraries/integrations/social.abstract';
@@ -484,6 +485,22 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     ];
   }
 
+  private rethrowAsRefreshIfExpired(err: unknown): never {
+    const s = JSON.stringify(
+      (err as any)?.response?.data || (err as any)?.errors || String(err)
+    );
+    if (
+      s.includes('Invalid Credentials') ||
+      s.includes('UNAUTHENTICATED') ||
+      s.includes('invalid_grant') ||
+      s.includes('"code":401') ||
+      s.includes('No access, refresh token')
+    ) {
+      throw new RefreshToken('youtube', s, '' as any);
+    }
+    throw err;
+  }
+
   @Tool({
     description:
       'Get comments on a published video. postId is the video id (releaseId).',
@@ -496,24 +513,28 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     data: { postId: string },
     id: string
   ) {
-    const { client, youtube } = clientAndYoutube();
-    client.setCredentials({ access_token: accessToken });
-    const y = youtube(client);
-    const { data: res } = await y.commentThreads.list({
-      part: ['snippet'],
-      videoId: data.postId,
-      maxResults: 100,
-      textFormat: 'plainText',
-    });
-    return (res.items || []).map((t) => {
-      const s = t.snippet?.topLevelComment?.snippet;
-      return {
-        id: t.snippet?.topLevelComment?.id || t.id || '',
-        message: s?.textDisplay || '',
-        from: { name: s?.authorDisplayName || '' },
-        created_time: s?.publishedAt || '',
-      };
-    });
+    try {
+      const { client, youtube } = clientAndYoutube();
+      client.setCredentials({ access_token: accessToken });
+      const y = youtube(client);
+      const { data: res } = await y.commentThreads.list({
+        part: ['snippet'],
+        videoId: data.postId,
+        maxResults: 100,
+        textFormat: 'plainText',
+      });
+      return (res.items || []).map((t) => {
+        const s = t.snippet?.topLevelComment?.snippet;
+        return {
+          id: t.snippet?.topLevelComment?.id || t.id || '',
+          message: s?.textDisplay || '',
+          from: { name: s?.authorDisplayName || '' },
+          created_time: s?.publishedAt || '',
+        };
+      });
+    } catch (err) {
+      this.rethrowAsRefreshIfExpired(err);
+    }
   }
 
   @Tool({
@@ -528,16 +549,20 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     data: { commentId: string; message: string },
     id: string
   ) {
-    const { client, youtube } = clientAndYoutube();
-    client.setCredentials({ access_token: accessToken });
-    const y = youtube(client);
-    const { data: res } = await y.comments.insert({
-      part: ['snippet'],
-      requestBody: {
-        snippet: { parentId: data.commentId, textOriginal: data.message },
-      },
-    });
-    return { id: res.id || '' };
+    try {
+      const { client, youtube } = clientAndYoutube();
+      client.setCredentials({ access_token: accessToken });
+      const y = youtube(client);
+      const { data: res } = await y.comments.insert({
+        part: ['snippet'],
+        requestBody: {
+          snippet: { parentId: data.commentId, textOriginal: data.message },
+        },
+      });
+      return { id: res.id || '' };
+    } catch (err) {
+      this.rethrowAsRefreshIfExpired(err);
+    }
   }
 
   async analytics(
