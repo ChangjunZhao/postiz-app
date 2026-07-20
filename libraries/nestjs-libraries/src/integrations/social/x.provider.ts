@@ -21,6 +21,7 @@ import { stripHtmlValidation } from '@gitroom/helpers/utils/strip.html.validatio
 import { stripLinks as removeLinks } from '@gitroom/helpers/utils/strip.links';
 import { XDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/x.dto';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 
 @Rules(
@@ -637,6 +638,64 @@ export class XProvider extends SocialAbstract implements SocialProvider {
         : []),
     ];
   };
+
+  @Tool({
+    description:
+      'Get replies to a published post. Requires X API tier with search access (Basic+).',
+    dataSchema: [
+      { key: 'postId', type: 'string', description: 'Tweet id (releaseId)' },
+    ],
+  })
+  async getPostComments(
+    accessToken: string,
+    data: { postId: string },
+    id: string
+  ) {
+    const [accessTokenSplit, accessSecretSplit] = accessToken.split(':');
+    const client = new TwitterApi({
+      appKey: process.env.X_API_KEY!,
+      appSecret: process.env.X_API_SECRET!,
+      accessToken: accessTokenSplit,
+      accessSecret: accessSecretSplit,
+    });
+    const res = await client.v2.search(`conversation_id:${data.postId} is:reply`, {
+      'tweet.fields': ['author_id', 'created_at'],
+      expansions: ['author_id'],
+      max_results: 100,
+    });
+    const users = new Map(
+      (res.includes?.users || []).map((u) => [u.id, u.name])
+    );
+    return (res.tweets || []).map((t) => ({
+      id: t.id,
+      message: t.text,
+      from: { name: (t.author_id && users.get(t.author_id)) || '' },
+      created_time: t.created_at || '',
+    }));
+  }
+
+  @Tool({
+    description: 'Reply to a comment (tweet) in a thread.',
+    dataSchema: [
+      { key: 'commentId', type: 'string', description: 'Tweet id to reply to' },
+      { key: 'message', type: 'string', description: 'Reply text' },
+    ],
+  })
+  async replyToComment(
+    accessToken: string,
+    data: { commentId: string; message: string },
+    id: string
+  ) {
+    const [accessTokenSplit, accessSecretSplit] = accessToken.split(':');
+    const client = new TwitterApi({
+      appKey: process.env.X_API_KEY!,
+      appSecret: process.env.X_API_SECRET!,
+      accessToken: accessTokenSplit,
+      accessSecret: accessSecretSplit,
+    });
+    const { data: res } = await client.v2.reply(data.message, data.commentId);
+    return { id: res?.id || '' };
+  }
 
   async analytics(
     id: string,

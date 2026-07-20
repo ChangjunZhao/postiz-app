@@ -917,6 +917,68 @@ export class InstagramProvider
     return '';
   }
 
+  @Tool({
+    description:
+      'Get comments on a published media. postId is the media id (releaseId).',
+    dataSchema: [
+      { key: 'postId', type: 'string', description: 'Media id (releaseId)' },
+    ],
+  })
+  async getPostComments(
+    token: string,
+    data: { postId: string },
+    id: string,
+    integration?: Integration
+  ) {
+    const [accessToken] = token.split('___');
+    const type =
+      integration?.providerIdentifier === 'instagram-standalone'
+        ? 'graph.instagram.com'
+        : 'graph.facebook.com';
+    const res = await (
+      await this.fetch(
+        `https://${type}/v21.0/${data.postId}/comments?fields=id,text,username,timestamp&limit=100&access_token=${accessToken}`
+      )
+    ).json();
+    return (res?.data || []).map((c: any) => ({
+      id: c.id || '',
+      message: c.text || '',
+      from: { name: c.username || '' },
+      created_time: c.timestamp || '',
+    }));
+  }
+
+  @Tool({
+    description: 'Reply to a comment on a published media.',
+    dataSchema: [
+      { key: 'commentId', type: 'string', description: 'Comment id to reply to' },
+      { key: 'message', type: 'string', description: 'Reply text' },
+    ],
+  })
+  async replyToComment(
+    token: string,
+    data: { commentId: string; message: string },
+    id: string,
+    integration?: Integration
+  ) {
+    const [accessToken] = token.split('___');
+    const type =
+      integration?.providerIdentifier === 'instagram-standalone'
+        ? 'graph.instagram.com'
+        : 'graph.facebook.com';
+    const res = await (
+      await this.fetch(
+        `https://${type}/v21.0/${data.commentId}/replies?access_token=${accessToken}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ message: data.message }),
+        }
+      )
+    ).json();
+    return { id: res?.id || '' };
+  }
+
   async analytics(
     id: string,
     token: string,

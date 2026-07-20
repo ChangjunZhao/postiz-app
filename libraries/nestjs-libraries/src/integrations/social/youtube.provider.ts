@@ -20,6 +20,7 @@ import dayjs from 'dayjs';
 import { GaxiosResponse } from 'gaxios/build/src/common';
 import Schema$Video = youtube_v3.Schema$Video;
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 
 const clientAndYoutube = () => {
   const client = new google.auth.OAuth2({
@@ -481,6 +482,62 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
         status: 'success',
       },
     ];
+  }
+
+  @Tool({
+    description:
+      'Get comments on a published video. postId is the video id (releaseId).',
+    dataSchema: [
+      { key: 'postId', type: 'string', description: 'Video id (releaseId)' },
+    ],
+  })
+  async getPostComments(
+    accessToken: string,
+    data: { postId: string },
+    id: string
+  ) {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: accessToken });
+    const y = youtube(client);
+    const { data: res } = await y.commentThreads.list({
+      part: ['snippet'],
+      videoId: data.postId,
+      maxResults: 100,
+      textFormat: 'plainText',
+    });
+    return (res.items || []).map((t) => {
+      const s = t.snippet?.topLevelComment?.snippet;
+      return {
+        id: t.snippet?.topLevelComment?.id || t.id || '',
+        message: s?.textDisplay || '',
+        from: { name: s?.authorDisplayName || '' },
+        created_time: s?.publishedAt || '',
+      };
+    });
+  }
+
+  @Tool({
+    description: 'Reply to a comment on a published video.',
+    dataSchema: [
+      { key: 'commentId', type: 'string', description: 'Comment id to reply to' },
+      { key: 'message', type: 'string', description: 'Reply text' },
+    ],
+  })
+  async replyToComment(
+    accessToken: string,
+    data: { commentId: string; message: string },
+    id: string
+  ) {
+    const { client, youtube } = clientAndYoutube();
+    client.setCredentials({ access_token: accessToken });
+    const y = youtube(client);
+    const { data: res } = await y.comments.insert({
+      part: ['snippet'],
+      requestBody: {
+        snippet: { parentId: data.commentId, textOriginal: data.message },
+      },
+    });
+    return { id: res.id || '' };
   }
 
   async analytics(
