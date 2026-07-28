@@ -58,14 +58,20 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
   name = 'YouTube';
   isBetweenSteps = true;
   dto = YoutubeSettingsDto;
+  // 最小权限：只保留代码里真正调用到的 scope。Google 的 sensitive scope 审核逐条
+  // 追问“为什么更小的 scope 不够用”，多申请一个用不到的就多一分被拒风险；且
+  // Cloud 控制台 Data Access 里声明的 scope 必须 ⊇ 这里请求的，否则授权直接弹
+  // “未验证应用”红页。删掉的 youtube / youtubepartner 全文无对应调用。
   scopes = [
     'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/youtube',
-    'https://www.googleapis.com/auth/youtube.force-ssl',
-    'https://www.googleapis.com/auth/youtube.readonly',
+    // videos.insert（发布）+ thumbnails.set（封面）
     'https://www.googleapis.com/auth/youtube.upload',
-    'https://www.googleapis.com/auth/youtubepartner',
+    // channels.list（连接时读频道名/头像）+ videos.list（回收播放/点赞数）
+    'https://www.googleapis.com/auth/youtube.readonly',
+    // commentThreads.list / comments.insert —— fork 自加的评论收发，这两个端点强制要求
+    'https://www.googleapis.com/auth/youtube.force-ssl',
+    // youtubeAnalytics.reports.query（数据洞察）
     'https://www.googleapis.com/auth/yt-analytics.readonly',
   ];
 
