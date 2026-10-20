@@ -22,6 +22,7 @@ import { Integration } from '@prisma/client';
 import { hasExtension } from '@gitroom/helpers/utils/has.extension';
 import { timer } from '@gitroom/helpers/utils/timer';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 
 export const META_GRAPH_API_VERSION = 'v25.0';
 
@@ -387,6 +388,59 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       picture: picture?.data?.url || '',
       username: '',
     };
+  }
+
+  @Tool({
+    description:
+      'Get comments on a published post. postId is the platform post id (releaseId, format pageId_postId).',
+    dataSchema: [
+      {
+        key: 'postId',
+        type: 'string',
+        description: 'Platform post id (releaseId) of the published post',
+      },
+    ],
+  })
+  async getPostComments(
+    accessToken: string,
+    data: { postId: string },
+    id: string
+  ) {
+    const response = await (
+      await this.fetch(
+        `https://graph.facebook.com/v20.0/${data.postId}/comments?fields=id,message,from,created_time,parent&limit=100&access_token=${accessToken}`
+      )
+    ).json();
+    return response?.data || [];
+  }
+
+  @Tool({
+    description: 'Reply to a comment on a published post.',
+    dataSchema: [
+      {
+        key: 'commentId',
+        type: 'string',
+        description: 'The comment id to reply to',
+      },
+      { key: 'message', type: 'string', description: 'Reply text' },
+    ],
+  })
+  async replyToComment(
+    accessToken: string,
+    data: { commentId: string; message: string },
+    id: string
+  ) {
+    const response = await (
+      await this.fetch(
+        `https://graph.facebook.com/v20.0/${data.commentId}/comments?access_token=${accessToken}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ message: data.message }),
+        }
+      )
+    ).json();
+    return { id: response?.id || '' };
   }
 
   async pages(accessToken: string) {
