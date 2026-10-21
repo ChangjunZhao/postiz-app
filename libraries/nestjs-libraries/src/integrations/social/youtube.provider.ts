@@ -25,6 +25,7 @@ import { createReadStream, statSync } from 'fs';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
 import { setHeartbeatDetails } from '@gitroom/nestjs-libraries/temporal/temporal.heartbeat';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { Tool } from '@gitroom/nestjs-libraries/integrations/tool.decorator';
 
 const clientAndYoutube = () => {
   const client = new google.auth.OAuth2({
