@@ -9,9 +9,13 @@ dist
 .nx
 /apps/frontend/.next
 /apps/backend/dist
+/apps/orchestrator/dist
+/apps/extension/dist
 /apps/workers/dist
 /apps/cron/dist
 /apps/commands/dist
+.env
+.env.*
 .devcontainer
 **/.git
 **/*.md

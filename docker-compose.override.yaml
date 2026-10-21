@@ -1,0 +1,38 @@
+# Postiz 生产覆盖 —— 与仓库自带 docker-compose.yaml 叠加使用。
+# 使用本地源码构建（含微信公众号 provider），并指向 postiz.sailhai.cn。
+#
+#   docker compose --env-file /root/postiz.env \
+#     -f docker-compose.yaml -f docker-compose.override.yaml ...
+services:
+  postiz:
+    image: postiz-local:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.deploy
+    depends_on:
+      temporal:
+        condition: service_started
+    environment:
+      MAIN_URL: "${POSTIZ_MAIN_URL}"
+      FRONTEND_URL: "${POSTIZ_MAIN_URL}"
+      NEXT_PUBLIC_BACKEND_URL: "${POSTIZ_MAIN_URL}/api"
+      JWT_SECRET: "${POSTIZ_JWT_SECRET}"
+      DATABASE_URL: "postgresql://postiz-user:${POSTIZ_DB_PASSWORD}@postiz-postgres:5432/postiz-db-local"
+      REDIS_URL: "redis://postiz-redis:6379"
+      # The first admin account is created; close public registration by default.
+      # Set POSTIZ_DISABLE_REGISTRATION=false in /root/postiz.env temporarily
+      # if you need to create another account, then recreate the container.
+      DISABLE_REGISTRATION: "${POSTIZ_DISABLE_REGISTRATION:-true}"
+      # The frontend reads this at runtime (server layout) for upload URLs.
+      NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: "/uploads"
+      # WeChat Official Account third-party platform (leave empty until the
+      # component app is approved; restart postiz after filling them).
+      WECHAT_COMPONENT_APPID: "${WECHAT_COMPONENT_APPID:-}"
+      WECHAT_COMPONENT_APPSECRET: "${WECHAT_COMPONENT_APPSECRET:-}"
+      WECHAT_COMPONENT_TOKEN: "${WECHAT_COMPONENT_TOKEN:-}"
+      WECHAT_COMPONENT_AES_KEY: "${WECHAT_COMPONENT_AES_KEY:-}"
+      WECHAT_COMPONENT_REDIRECT_URI: "${POSTIZ_MAIN_URL}/integrations/social/wechat"
+
+  postiz-postgres:
+    environment:
+      POSTGRES_PASSWORD: "${POSTIZ_DB_PASSWORD}"
