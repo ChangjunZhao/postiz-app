@@ -3,7 +3,7 @@ initializeSentry('backend', true);
 import compression from 'compression';
 
 import { loadSwagger } from '@gitroom/helpers/swagger/load.swagger';
-import { json } from 'express';
+import { json, text } from 'express';
 import { Runtime } from '@temporalio/worker';
 Runtime.install({ shutdownSignals: [] });
 
@@ -70,6 +70,17 @@ async function start() {
   app.use(['/copilot/{*splat}', '/posts'], (req: any, res: any, next: any) => {
     json({ limit: '50mb' })(req, res, next);
   });
+
+  // WeChat Open Platform event callbacks are XML, not JSON. Nest's `rawBody`
+  // option only captures the default JSON/urlencoded parsers, so parse the
+  // XML body into a string for the component event handler.
+  app.use(
+    '/integrations/wechat/component',
+    text({ type: ['application/xml', 'text/xml'], limit: '2mb' })
+  );
+  // Short callbacks used by the WeChat Open Platform UI (the message/event URL
+  // must contain $APPID$, and the long path above does not fit the field).
+  app.use('/wx', text({ type: ['application/xml', 'text/xml'], limit: '2mb' }));
 
   app.use(cookieParser());
   app.use(compression());

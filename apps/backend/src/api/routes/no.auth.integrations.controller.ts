@@ -2,9 +2,13 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   HttpException,
   Param,
   Post,
+  Query,
+  Req,
+  Res,
   UseFilters,
 } from '@nestjs/common';
 import { ioRedis } from '@gitroom/nestjs-libraries/redis/redis.service';
@@ -24,6 +28,7 @@ import {
 import { RefreshIntegrationService } from '@gitroom/nestjs-libraries/integrations/refresh.integration.service';
 import { OrganizationService } from '@gitroom/nestjs-libraries/database/prisma/organizations/organization.service';
 import { getSsrfSafeDispatcher } from '@gitroom/nestjs-libraries/dtos/webhooks/ssrf.safe.dispatcher';
+import { wechatComponentService } from '@gitroom/nestjs-libraries/integrations/wechat/wechat.component.service';
 
 @ApiTags('Integrations')
 @Controller('/integrations')
@@ -38,6 +43,81 @@ export class NoAuthIntegrationsController {
   @Get('/')
   getIntegrations() {
     return this._integrationManager.getAllIntegrations();
+  }
+
+  /**
+   * 微信开放平台第三方平台 —— 授权事件接收 URL。
+   * 微信会用 GET 做 URL 校验，用 POST 推送 component_verify_ticket / 授权事件。
+   */
+  @Get('/wechat/component')
+  async wechatComponentVerify(@Query() query: any, @Res() res: any) {
+    try {
+      if (
+        !wechatComponentService.verifyUrl(
+          query.signature,
+          query.timestamp,
+          query.nonce
+        )
+      ) {
+        return res.status(403).send('invalid signature');
+      }
+
+      return res.send(query.echostr || '');
+    } catch {
+      return res.status(403).send('invalid');
+    }
+  }
+
+  @Post('/wechat/component')
+  @HttpCode(200)
+  async wechatComponentEvent(
+    @Query() query: any,
+    @Req() req: any,
+    @Res() res: any
+  ) {
+    try {
+      const rawXml =
+        req.rawBody?.toString('utf8') ||
+        (typeof req.body === 'string' ? req.body : '');
+      await wechatComponentService.handleEvent(rawXml, query);
+      return res.send('success');
+    } catch (err) {
+      console.error('WeChat component event failed', err);
+      return res.status(403).send('invalid');
+    }
+  }
+
+  /**
+   * 微信开放平台第三方平台 —— 消息与事件接收 URL。
+   * 开放平台要求该 URL 包含 $APPID$ 占位符，实际请求路径会变成
+   * /wechat/component/<authorizer_appid>。我们不消费授权账号的消息，
+   * 只做 URL 校验并确认接收（发布走组件 API，不依赖这里的消息事件）。
+   */
+  @Get('/wechat/component/:appid')
+  async wechatAuthorizerVerify(@Query() query: any, @Res() res: any) {
+    try {
+      if (
+        !wechatComponentService.verifyUrl(
+          query.signature,
+          query.timestamp,
+          query.nonce
+        )
+      ) {
+        return res.status(403).send('invalid signature');
+      }
+
+      return res.send(query.echostr || '');
+    } catch {
+      return res.status(403).send('invalid');
+    }
+  }
+
+  @Post('/wechat/component/:appid')
+  @HttpCode(200)
+  async wechatAuthorizerEvent(@Res() res: any) {
+    // Acknowledge so WeChat does not retry; authorized-account messages are
+    // intentionally ignored (publishing uses the component API directly).
+    return res.send('success');
   }
 
   @Post('/social-connect/:integration')

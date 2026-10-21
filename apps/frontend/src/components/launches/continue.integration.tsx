@@ -71,6 +71,21 @@ export const ContinueIntegration: FC<{
       };
     }
 
+    if (provider === 'wechat') {
+      // The state is carried inside the redirect_uri. Depending on how the
+      // provider appends auth_code, it can arrive as `?state=...&auth_code=...`
+      // or as a state value containing `?auth_code=...`.
+      const [state, codeFromState] = (searchParams.state || '').split(
+        '?auth_code='
+      );
+      return {
+        state,
+        code:
+          searchParams.auth_code || codeFromState || searchParams.code || '',
+        refresh: searchParams.refresh || '',
+      };
+    }
+
     if (provider === 'tiktok-business') {
       // The TikTok Business API redirects back with `auth_code` instead of `code`
       return {

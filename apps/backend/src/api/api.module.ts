@@ -39,6 +39,7 @@ import { SetsController } from '@gitroom/backend/api/routes/sets.controller';
 import { ThirdPartyController } from '@gitroom/backend/api/routes/third-party.controller';
 import { MonitorController } from '@gitroom/backend/api/routes/monitor.controller';
 import { NoAuthIntegrationsController } from '@gitroom/backend/api/routes/no.auth.integrations.controller';
+import { WechatController } from '@gitroom/backend/api/routes/wechat.controller';
 import { EnterpriseController } from '@gitroom/backend/api/routes/enterprise.controller';
 import { OAuthAppController } from '@gitroom/backend/api/routes/oauth-app.controller';
 import { ApprovedAppsController } from '@gitroom/backend/api/routes/approved-apps.controller';
@@ -97,6 +98,7 @@ const authenticatedController = [
         MonitorController,
         EnterpriseController,
         NoAuthIntegrationsController,
+        WechatController,
         OAuthController,
         MediaWidgetController,
         ClippingWidgetController,
